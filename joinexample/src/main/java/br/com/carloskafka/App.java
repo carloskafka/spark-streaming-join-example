@@ -76,7 +76,7 @@ public class App {
         }
     }
 
-    public static final int AMOUNT_OF_EVENTS = 2;
+    public static final int AMOUNT_OF_EVENTS = 1;
 
     static void runProducer2() {
         try {
@@ -132,7 +132,7 @@ public class App {
     }
 
     public static void main(String[] args) {
-//        runJoin();
+        //runJoin();
         runTwoProducersSpammerAsync();
     }
 
@@ -142,17 +142,17 @@ public class App {
 //
 //        scheduler.scheduleWithFixedDelay(new Runnable() {
 //            public void run() {
-                // Start Spark
-                JavaStreamingContext streamingContext = gettingJavaStreamingContext();
+        // Start Spark
+        JavaStreamingContext streamingContext = gettingJavaStreamingContext();
 
-                // Consume From Two Kafka Topics
-                JavaInputDStream<ConsumerRecord<String, String>> messagesFromKafka = getDStreamFromFirstTopicKafka(streamingContext);
-                JavaInputDStream<ConsumerRecord<String, String>> messagesFromKafka2 = getDStreamFromSecondTopicKafka(streamingContext);
+        // Consume From Two Kafka Topics
+        JavaInputDStream<ConsumerRecord<String, String>> messagesFromKafka = getDStreamFromFirstTopicKafka(streamingContext);
+        JavaInputDStream<ConsumerRecord<String, String>> messagesFromKafka2 = getDStreamFromSecondTopicKafka(streamingContext);
 
-                // Join
-                processObtainedDStream(streamingContext, messagesFromKafka, messagesFromKafka2);
+        // Join
+        processObtainedDStream(streamingContext, messagesFromKafka, messagesFromKafka2);
 
-                runApplication(streamingContext);
+        runApplication(streamingContext);
 //            }
 //        }, 0, 1, TimeUnit.SECONDS);
     }
@@ -163,8 +163,8 @@ public class App {
 //
 //        scheduler.scheduleWithFixedDelay(new Runnable() {
 //            public void run() {
-                runProducer();
-                runProducer2();
+        runProducer();
+        runProducer2();
 //            }
 //        }, 0, 1, TimeUnit.SECONDS);
     }
