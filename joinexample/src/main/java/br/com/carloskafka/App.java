@@ -22,9 +22,9 @@ import java.util.*;
 
 public class App {
 
-    public static final Duration MICROBATCH_DURATION = Durations.seconds(1);
-    private static final Duration WINDOW_DURATION = Durations.seconds(3);
-    private static final Duration SLIDING_INTERVAL_IN_WINDOW_DURATION = Durations.seconds(3);
+    public static final Duration MICROBATCH_DURATION = Durations.milliseconds(250);
+    private static final Duration WINDOW_DURATION = Durations.seconds(15);
+    private static final Duration SLIDING_INTERVAL_IN_WINDOW_DURATION = Durations.milliseconds(500);
     public static final String TOPIC_NAME = "messages";
     public static final String TOPIC_NAME_2 = "messages2";
 
@@ -76,7 +76,7 @@ public class App {
         }
     }
 
-    public static final int AMOUNT_OF_EVENTS = 1;
+    public static final int AMOUNT_OF_EVENTS = 4;
 
     static void runProducer2() {
         try {
@@ -85,7 +85,7 @@ public class App {
                 ProducerRecord<Long, String> record = new ProducerRecord<Long, String>(TOPIC_NAME_2,
                         new ObjectMapper().writeValueAsString(new Objeto("agencia", "conta", "numerMov" + index)));
                 try {
-                    RecordMetadata metadata = producer.send(record).get();
+                    producer.send(record);
 //                System.out.println("Record sent with key " + index + " to partition " + metadata.partition()
 //                        + " with offset " + metadata.offset());
                 } catch (Exception e) {
@@ -105,7 +105,7 @@ public class App {
                 ProducerRecord<Long, String> record = new ProducerRecord<Long, String>(TOPIC_NAME,
                         new ObjectMapper().writeValueAsString(new Objeto("agencia", "conta", "numerMov" + index)));
                 try {
-                    RecordMetadata metadata = producer.send(record).get();
+                    producer.send(record);
 //                System.out.println("Record sent with key " + index + " to partition " + metadata.partition()
 //                        + " with offset " + metadata.offset());
                 } catch (Exception e) {
@@ -228,9 +228,7 @@ public class App {
         JavaPairDStream<String, Tuple2<Objeto, Objeto>> joinedWordCount = results.join(results2)
                 .window(WINDOW_DURATION, SLIDING_INTERVAL_IN_WINDOW_DURATION);
 
-        joinedWordCount.groupByKey().print();
-
-//        joinedWordCount.print();
+        joinedWordCount.print();
 
         return joinedWordCount;
     }
