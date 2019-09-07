@@ -1,10 +1,7 @@
 package br.com.carloskafka;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.Producer;
-import org.apache.kafka.clients.producer.ProducerConfig;
-import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.*;
 import org.apache.kafka.common.serialization.LongSerializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -27,11 +24,15 @@ public class App {
     public static final Duration MICROBATCH_DURATION = Durations.milliseconds(250);
     private static final Duration WINDOW_DURATION = Durations.seconds(1);
     private static final Duration SLIDING_INTERVAL_IN_WINDOW_DURATION = Durations.seconds(1);
-    public static final String TOPIC_NAME = "a";
-    public static final String TOPIC_NAME_2 = "b";
+    public static final String TOPIC_NAME = "TOPICO_UM";
+    public static final String TOPIC_NAME_2 = "TOPICO_DOIS";
 
 
-    public static final int AMOUNT_OF_EVENTS = 1_000_000_000;
+    public static final int AMOUNT_OF_EVENTS = 500_000_000;
+
+    public App() {
+        super();
+    }
 
     public void runProducer() {
         try {
@@ -57,10 +58,11 @@ public class App {
     public Producer<Long, String> getKafkaProducerOrCreateIfNotExists() {
         Properties props = new Properties();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092, localhost:9093, localhost:9094");
-        props.put(ProducerConfig.CLIENT_ID_CONFIG, UUID.randomUUID().toString());
+        props.put(ProducerConfig.CLIENT_ID_CONFIG, "clientId");
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, LongSerializer.class.getName());
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
         //props.put(ProducerConfig.PARTITIONER_CLASS_CONFIG, CustomPartitioner.class.getName());
+
         return new KafkaProducer<>(props);
     }
 
@@ -99,8 +101,9 @@ public class App {
     private JavaStreamingContext gettingJavaStreamingContext() {
         SparkConf sparkConf = new SparkConf()
                 .setAppName("Example Spark App")
-                .set("spark.local.dir", "E:/spark-partitions")
-                .setMaster("local[*]")  // Delete this line when submitting to a cluster
+                .set("spark.local.dir", "E:/spark-partitions/" + UUID.randomUUID().toString())
+                .set("spark.streaming.backpressure.enabled","true")
+                .setMaster("local[1]")  // Delete this line when submitting to a cluster
                 ;
 
         JavaStreamingContext javaStreamingContext = new JavaStreamingContext(
@@ -164,7 +167,7 @@ public class App {
         kafkaParams.put("bootstrap.servers", "localhost:9092, localhost:9093, localhost:9094");
         kafkaParams.put("key.deserializer", StringDeserializer.class);
         kafkaParams.put("value.deserializer", StringDeserializer.class);
-        kafkaParams.put("group.id", "first-topic");
+        kafkaParams.put("group.id", "first-topic-999");
         kafkaParams.put("auto.offset.reset", "latest");
         kafkaParams.put("enable.auto.commit", true);
         Collection<String> topics = Arrays.asList(TOPIC_NAME);
@@ -184,7 +187,7 @@ public class App {
         kafkaParams.put("bootstrap.servers", "localhost:9092, localhost:9093, localhost:9094");
         kafkaParams.put("key.deserializer", StringDeserializer.class);
         kafkaParams.put("value.deserializer", StringDeserializer.class);
-        kafkaParams.put("group.id", "second-topic");
+        kafkaParams.put("group.id", "second-topic-999");
         kafkaParams.put("auto.offset.reset", "latest");
         kafkaParams.put("enable.auto.commit", true);
         Collection<String> topics = Arrays.asList(TOPIC_NAME_2);
@@ -202,7 +205,7 @@ public class App {
     public static void main(String[] args) {
         App app = new App();
 
-        app.runJoin();
-//        app.runTwoProducersSpammerAsync();
+//        app.runJoin();
+        app.runTwoProducersSpammerAsync();
     }
 }
