@@ -1,14 +1,19 @@
 package br.com.carloskafka;
 
+import com.google.common.collect.Maps;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.producer.*;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.Producer;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.LongSerializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.spark.SparkConf;
+import org.apache.spark.storage.StorageLevel;
 import org.apache.spark.streaming.Duration;
 import org.apache.spark.streaming.Durations;
-import org.apache.spark.streaming.api.java.JavaInputDStream;
+import org.apache.spark.streaming.api.java.JavaDStream;
 import org.apache.spark.streaming.api.java.JavaPairDStream;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import org.apache.spark.streaming.kafka010.ConsumerStrategies;
@@ -17,97 +22,30 @@ import org.apache.spark.streaming.kafka010.LocationStrategies;
 import org.codehaus.jackson.map.ObjectMapper;
 import scala.Tuple2;
 
-import java.io.Serializable;
 import java.util.*;
 
 public class App {
 
-    public static final Duration MICROBATCH_DURATION = Durations.seconds(1);
-    private static final Duration WINDOW_DURATION = Durations.seconds(3);
-    private static final Duration SLIDING_INTERVAL_IN_WINDOW_DURATION = Durations.seconds(3);
-    public static final String TOPIC_NAME = "messages";
-    public static final String TOPIC_NAME_2 = "messages2";
+    public static final Duration MICROBATCH_DURATION = Durations.milliseconds(250);
+    private static final Duration WINDOW_DURATION = Durations.seconds(1);
+    private static final Duration SLIDING_INTERVAL_IN_WINDOW_DURATION = Durations.seconds(1);
+    public static final String TOPIC_NAME = "a";
+    public static final String TOPIC_NAME_2 = "b";
 
-    static class Objeto implements Serializable {
-        private String agencia;
-        private String conta;
-        private String numerMov;
-        private String valorAleatorio;
 
-        public Objeto() {
-        }
+    public static final int AMOUNT_OF_EVENTS = 1_000_000_000;
 
-        public Objeto(String agencia, String conta, String numerMov) {
-            this.agencia = agencia;
-            this.conta = conta;
-            this.numerMov = numerMov;
-            this.valorAleatorio = UUID.randomUUID().toString();
-        }
-
-        public String getAgencia() {
-            return agencia;
-        }
-
-        public String getConta() {
-            return conta;
-        }
-
-        public String getNumerMov() {
-            return numerMov;
-        }
-
-        public String key() {
-            return getAgencia() + getConta() + getNumerMov();
-        }
-
-        public String getValorAleatorio() {
-            return valorAleatorio;
-        }
-
-        @Override
-        public String toString() {
-            return "Objeto{" +
-                    "agencia='" + agencia + '\'' +
-                    ", conta='" + conta + '\'' +
-                    ", numerMov='" + numerMov + '\'' +
-                    ", valorAleatorio='" + valorAleatorio + '\'' +
-                    ", key='" + key() + '\'' +
-                    '}';
-        }
-    }
-
-    public static final int AMOUNT_OF_EVENTS = 2;
-
-    static void runProducer2() {
-        try {
-            Producer<Long, String> producer = getKafkaProducerOrCreateIfNotExists();
-            for (int index = 1; index <= AMOUNT_OF_EVENTS; index++) {
-                ProducerRecord<Long, String> record = new ProducerRecord<Long, String>(TOPIC_NAME_2,
-                        new ObjectMapper().writeValueAsString(new Objeto("agencia", "conta", "numerMov" + index)));
-                try {
-                    RecordMetadata metadata = producer.send(record).get();
-//                System.out.println("Record sent with key " + index + " to partition " + metadata.partition()
-//                        + " with offset " + metadata.offset());
-                } catch (Exception e) {
-                    System.out.println("Error in sending record");
-                    System.out.println(e);
-                }
-            }
-        } catch (Exception e) {
-            System.out.println("Error to produce events to topic kafka.\nDetails: " + e.getMessage());
-        }
-    }
-
-    static void runProducer() {
+    public void runProducer() {
         try {
             Producer<Long, String> producer = getKafkaProducerOrCreateIfNotExists();
             for (int index = 1; index <= AMOUNT_OF_EVENTS; index++) {
                 ProducerRecord<Long, String> record = new ProducerRecord<Long, String>(TOPIC_NAME,
                         new ObjectMapper().writeValueAsString(new Objeto("agencia", "conta", "numerMov" + index)));
+                ProducerRecord<Long, String> record2 = new ProducerRecord<Long, String>(TOPIC_NAME_2,
+                        new ObjectMapper().writeValueAsString(new Objeto("agencia", "conta", "numerMov" + index)));
                 try {
-                    RecordMetadata metadata = producer.send(record).get();
-//                System.out.println("Record sent with key " + index + " to partition " + metadata.partition()
-//                        + " with offset " + metadata.offset());
+                    producer.send(record);
+                    producer.send(record2);
                 } catch (Exception e) {
                     System.out.println("Error in sending record");
                     System.out.println(e);
@@ -118,63 +56,53 @@ public class App {
         }
     }
 
-    private static KafkaProducer PRODUCER;
-
-    public synchronized static Producer<Long, String> getKafkaProducerOrCreateIfNotExists() {
+    public Producer<Long, String> getKafkaProducerOrCreateIfNotExists() {
         Properties props = new Properties();
-        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092, localhost:9093, localhost:9094");
         props.put(ProducerConfig.CLIENT_ID_CONFIG, UUID.randomUUID().toString());
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, LongSerializer.class.getName());
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
         //props.put(ProducerConfig.PARTITIONER_CLASS_CONFIG, CustomPartitioner.class.getName());
-        PRODUCER = new KafkaProducer<>(props);
-        return PRODUCER;
+        return new KafkaProducer<>(props);
     }
 
-    public static void main(String[] args) {
-//        runJoin();
-        runTwoProducersSpammerAsync();
-    }
-
-    private static void runJoin() {
+    private void runJoin() {
 //        ScheduledExecutorService scheduler = Executors
 //                .newScheduledThreadPool(1);
 //
 //        scheduler.scheduleWithFixedDelay(new Runnable() {
 //            public void run() {
-                // Start Spark
-                JavaStreamingContext streamingContext = gettingJavaStreamingContext();
+        // Start Spark
+        JavaStreamingContext streamingContext = gettingJavaStreamingContext();
 
-                // Consume From Two Kafka Topics
-                JavaInputDStream<ConsumerRecord<String, String>> messagesFromKafka = getDStreamFromFirstTopicKafka(streamingContext);
-                JavaInputDStream<ConsumerRecord<String, String>> messagesFromKafka2 = getDStreamFromSecondTopicKafka(streamingContext);
+        // Consume From Two Kafka Topics
+        JavaDStream<ConsumerRecord<String, String>> messagesFromKafka = getDStreamFromFirstTopicKafka(streamingContext);
+        JavaDStream<ConsumerRecord<String, String>> messagesFromKafka2 = getDStreamFromSecondTopicKafka(streamingContext);
 
-                // Join
-                processObtainedDStream(streamingContext, messagesFromKafka, messagesFromKafka2);
+        // Join
+        processObtainedDStream(streamingContext, messagesFromKafka, messagesFromKafka2);
 
-                runApplication(streamingContext);
+        runApplication(streamingContext);
 //            }
 //        }, 0, 1, TimeUnit.SECONDS);
     }
 
-    private static void runTwoProducersSpammerAsync() {
+    private void runTwoProducersSpammerAsync() {
 //        ScheduledExecutorService scheduler = Executors
 //                .newScheduledThreadPool(1);
 //
 //        scheduler.scheduleWithFixedDelay(new Runnable() {
 //            public void run() {
-                runProducer();
-                runProducer2();
+        runProducer();
 //            }
 //        }, 0, 1, TimeUnit.SECONDS);
     }
 
-    private static JavaStreamingContext gettingJavaStreamingContext() {
+    private JavaStreamingContext gettingJavaStreamingContext() {
         SparkConf sparkConf = new SparkConf()
                 .setAppName("Example Spark App")
-                .set("spark.streaming.kafka.consumer.cache.enabled", "false")
-                .set("spark.streaming.backpressure.enabled", "true")
-                .setMaster("local[*]")  // Delete this line when submitting to a cluster
+                .set("spark.local.dir", "E:/spark-partitions")
+                .setMaster("local[3]")  // Delete this line when submitting to a cluster
                 ;
 
         JavaStreamingContext javaStreamingContext = new JavaStreamingContext(
@@ -194,7 +122,7 @@ public class App {
         }
     }
 
-    private static JavaPairDStream<String, Tuple2<Objeto, Objeto>> processObtainedDStream(JavaStreamingContext streamingContext, JavaInputDStream<ConsumerRecord<String, String>> messages, JavaInputDStream<ConsumerRecord<String, String>> messages2) {
+    private static JavaPairDStream<String, Tuple2<Objeto, Objeto>> processObtainedDStream(JavaStreamingContext streamingContext, JavaDStream<ConsumerRecord<String, String>> messages, JavaDStream<ConsumerRecord<String, String>> messages2) {
         JavaPairDStream<String, Objeto> results = messages
                 .mapToPair(
                         record -> {
@@ -228,49 +156,55 @@ public class App {
         JavaPairDStream<String, Tuple2<Objeto, Objeto>> joinedWordCount = results.join(results2)
                 .window(WINDOW_DURATION, SLIDING_INTERVAL_IN_WINDOW_DURATION);
 
-        joinedWordCount.groupByKey().print();
-
-//        joinedWordCount.print();
+        joinedWordCount.print();
 
         return joinedWordCount;
     }
 
-    public static JavaInputDStream<ConsumerRecord<String, String>> getDStreamFromFirstTopicKafka(JavaStreamingContext streamingContext) {
+    public JavaDStream<ConsumerRecord<String, String>> getDStreamFromFirstTopicKafka(JavaStreamingContext streamingContext) {
         Map<String, Object> kafkaParams = new HashMap<>();
-        kafkaParams.put("bootstrap.servers", "localhost:9092");
+        kafkaParams.put("bootstrap.servers", "localhost:9092, localhost:9093, localhost:9094");
         kafkaParams.put("key.deserializer", StringDeserializer.class);
         kafkaParams.put("value.deserializer", StringDeserializer.class);
-        kafkaParams.put("group.id", UUID.randomUUID().toString());
+        kafkaParams.put("group.id", "first-topic");
         kafkaParams.put("auto.offset.reset", "latest");
-        kafkaParams.put("enable.auto.commit", false);
+        kafkaParams.put("enable.auto.commit", true);
         Collection<String> topics = Arrays.asList(TOPIC_NAME);
 
-        JavaInputDStream<ConsumerRecord<String, String>> messages =
+        JavaDStream<ConsumerRecord<String, String>> messages =
                 KafkaUtils.createDirectStream(
                         streamingContext,
-                        LocationStrategies.PreferConsistent(),
-                        ConsumerStrategies.<String, String>Subscribe(topics, kafkaParams));
+                        LocationStrategies.PreferBrokers(),
+                        ConsumerStrategies.Subscribe(topics, kafkaParams)
+                );
 
         return messages;
     }
 
-    public static JavaInputDStream<ConsumerRecord<String, String>> getDStreamFromSecondTopicKafka(JavaStreamingContext streamingContext) {
+    public JavaDStream<ConsumerRecord<String, String>> getDStreamFromSecondTopicKafka(JavaStreamingContext streamingContext) {
         Map<String, Object> kafkaParams = new HashMap<>();
-        kafkaParams.put("bootstrap.servers", "localhost:9092");
+        kafkaParams.put("bootstrap.servers", "localhost:9092, localhost:9093, localhost:9094");
         kafkaParams.put("key.deserializer", StringDeserializer.class);
         kafkaParams.put("value.deserializer", StringDeserializer.class);
-        kafkaParams.put("group.id", UUID.randomUUID().toString());
+        kafkaParams.put("group.id", "second-topic");
         kafkaParams.put("auto.offset.reset", "latest");
-        kafkaParams.put("enable.auto.commit", false);
+        kafkaParams.put("enable.auto.commit", true);
         Collection<String> topics = Arrays.asList(TOPIC_NAME_2);
 
-        JavaInputDStream<ConsumerRecord<String, String>> messages =
+        JavaDStream<ConsumerRecord<String, String>> messages =
                 KafkaUtils.createDirectStream(
                         streamingContext,
-                        LocationStrategies.PreferConsistent(),
-                        ConsumerStrategies.<String, String>Subscribe(topics, kafkaParams));
+                        LocationStrategies.PreferBrokers(),
+                        ConsumerStrategies.Subscribe(topics, kafkaParams)
+                );
 
         return messages;
     }
 
+    public static void main(String[] args) {
+        App app = new App();
+
+        app.runJoin();
+//        app.runTwoProducersSpammerAsync();
+    }
 }
