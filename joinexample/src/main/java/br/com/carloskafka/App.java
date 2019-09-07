@@ -1,6 +1,5 @@
 package br.com.carloskafka;
 
-import com.google.common.collect.Maps;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
@@ -10,7 +9,6 @@ import org.apache.kafka.common.serialization.LongSerializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.spark.SparkConf;
-import org.apache.spark.storage.StorageLevel;
 import org.apache.spark.streaming.Duration;
 import org.apache.spark.streaming.Durations;
 import org.apache.spark.streaming.api.java.JavaDStream;
@@ -80,7 +78,7 @@ public class App {
         JavaDStream<ConsumerRecord<String, String>> messagesFromKafka2 = getDStreamFromSecondTopicKafka(streamingContext);
 
         // Join
-        processObtainedDStream(streamingContext, messagesFromKafka, messagesFromKafka2);
+        processObtainedDStream(messagesFromKafka, messagesFromKafka2);
 
         runApplication(streamingContext);
 //            }
@@ -122,7 +120,7 @@ public class App {
         }
     }
 
-    private static JavaPairDStream<String, Tuple2<Objeto, Objeto>> processObtainedDStream(JavaStreamingContext streamingContext, JavaDStream<ConsumerRecord<String, String>> messages, JavaDStream<ConsumerRecord<String, String>> messages2) {
+    private static JavaPairDStream<String, Tuple2<Objeto, Objeto>> processObtainedDStream(JavaDStream<ConsumerRecord<String, String>> messages, JavaDStream<ConsumerRecord<String, String>> messages2) {
         JavaPairDStream<String, Objeto> results = messages
                 .mapToPair(
                         record -> {
