@@ -102,7 +102,7 @@ public class App {
         SparkConf sparkConf = new SparkConf()
                 .setAppName("Example Spark App")
                 .set("spark.local.dir", "E:/spark-partitions")
-                .setMaster("local[3]")  // Delete this line when submitting to a cluster
+                .setMaster("local[*]")  // Delete this line when submitting to a cluster
                 ;
 
         JavaStreamingContext javaStreamingContext = new JavaStreamingContext(
