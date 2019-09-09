@@ -15,12 +15,14 @@ import org.apache.spark.streaming.kafka010.ConsumerStrategies;
 import org.apache.spark.streaming.kafka010.KafkaUtils;
 import org.apache.spark.streaming.kafka010.LocationStrategies;
 import org.codehaus.jackson.map.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import scala.Tuple2;
 
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class App {
-
     public static final Duration MICROBATCH_DURATION = Durations.milliseconds(250);
     private static final Duration WINDOW_DURATION = Durations.seconds(1);
     private static final Duration SLIDING_INTERVAL_IN_WINDOW_DURATION = Durations.seconds(1);
@@ -28,7 +30,7 @@ public class App {
     public static final String TOPIC_NAME_2 = "TOPICO_DOIS";
 
 
-    public static final int AMOUNT_OF_EVENTS = 500_000_000;
+    public static final int AMOUNT_OF_EVENTS = 50;
 
     public App() {
         super();
@@ -57,7 +59,7 @@ public class App {
 
     public Producer<Long, String> getKafkaProducerOrCreateIfNotExists() {
         Properties props = new Properties();
-        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092, localhost:9093, localhost:9094");
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
         props.put(ProducerConfig.CLIENT_ID_CONFIG, "clientId");
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, LongSerializer.class.getName());
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
@@ -101,8 +103,8 @@ public class App {
     private JavaStreamingContext gettingJavaStreamingContext() {
         SparkConf sparkConf = new SparkConf()
                 .setAppName("Example Spark App")
-                .set("spark.local.dir", "E:/spark-partitions/" + UUID.randomUUID().toString())
-                .set("spark.streaming.backpressure.enabled","true")
+                .set("spark.local.dir", "C:/spark-partitions/" + UUID.randomUUID().toString())
+                //.set("spark.streaming.backpressure.enabled","true")
                 .setMaster("local[1]")  // Delete this line when submitting to a cluster
                 ;
 
@@ -132,8 +134,8 @@ public class App {
 
                             Tuple2<String, Objeto> tupla = new Tuple2<String, Objeto>(objeto.key(), objeto);
 
-                            System.out.println("Tupla received from first topic kafka " + TOPIC_NAME);
-                            System.out.println(tupla);
+                            //System.out.println("Tupla received from first topic kafka " + TOPIC_NAME);
+                            //System.out.println(tupla);
 
                             return tupla;
                         }
@@ -147,24 +149,44 @@ public class App {
 
                             Tuple2<String, Objeto> tupla = new Tuple2<String, Objeto>(objeto.key(), objeto);
 
-                            System.out.println("Tupla received from second topic kafka " + TOPIC_NAME_2);
-                            System.out.println(tupla);
+                            //System.out.println("Tupla received from second topic kafka " + TOPIC_NAME_2);
+                            //System.out.println(tupla);
 
                             return tupla;
                         }
                 );
 
+
+        // Count streams
+        messages.foreachRDD((rdd) -> {
+            if (!rdd.isEmpty()) {
+                System.out.println(new SimpleDateFormat("dd/MM/yyyy HH:MM:sss").format(new Date()) + "|| Count mensagens do primeiro tópico: " + rdd.count());
+            }
+        });
+
+        messages2.foreachRDD((rdd) -> {
+            if (!rdd.isEmpty()) {
+                System.out.println(new SimpleDateFormat("dd/MM/yyyy HH:MM:sss").format(new Date()) + "|| Count mensagens do segundo tópico: " + rdd.count());
+            }
+        });
+
         JavaPairDStream<String, Tuple2<Objeto, Objeto>> joinedWordCount = results.join(results2)
                 .window(WINDOW_DURATION, SLIDING_INTERVAL_IN_WINDOW_DURATION);
 
-        joinedWordCount.print();
+        joinedWordCount.foreachRDD((rdd) -> {
+            if (!rdd.isEmpty()) {
+                System.out.println(new SimpleDateFormat("dd/MM/yyyy HH:MM:sss").format(new Date()) + "|| Count mensagens JOIN: " + rdd.count());
+            }
+        });
+
+        // joinedWordCount.print();
 
         return joinedWordCount;
     }
 
     public JavaDStream<ConsumerRecord<String, String>> getDStreamFromFirstTopicKafka(JavaStreamingContext streamingContext) {
         Map<String, Object> kafkaParams = new HashMap<>();
-        kafkaParams.put("bootstrap.servers", "localhost:9092, localhost:9093, localhost:9094");
+        kafkaParams.put("bootstrap.servers", "localhost:9092");
         kafkaParams.put("key.deserializer", StringDeserializer.class);
         kafkaParams.put("value.deserializer", StringDeserializer.class);
         kafkaParams.put("group.id", "first-topic-999");
@@ -175,7 +197,7 @@ public class App {
         JavaDStream<ConsumerRecord<String, String>> messages =
                 KafkaUtils.createDirectStream(
                         streamingContext,
-                        LocationStrategies.PreferBrokers(),
+                        LocationStrategies.PreferConsistent(),
                         ConsumerStrategies.Subscribe(topics, kafkaParams)
                 );
 
@@ -184,7 +206,7 @@ public class App {
 
     public JavaDStream<ConsumerRecord<String, String>> getDStreamFromSecondTopicKafka(JavaStreamingContext streamingContext) {
         Map<String, Object> kafkaParams = new HashMap<>();
-        kafkaParams.put("bootstrap.servers", "localhost:9092, localhost:9093, localhost:9094");
+        kafkaParams.put("bootstrap.servers", "localhost:9092");
         kafkaParams.put("key.deserializer", StringDeserializer.class);
         kafkaParams.put("value.deserializer", StringDeserializer.class);
         kafkaParams.put("group.id", "second-topic-999");
@@ -195,7 +217,7 @@ public class App {
         JavaDStream<ConsumerRecord<String, String>> messages =
                 KafkaUtils.createDirectStream(
                         streamingContext,
-                        LocationStrategies.PreferBrokers(),
+                        LocationStrategies.PreferConsistent(),
                         ConsumerStrategies.Subscribe(topics, kafkaParams)
                 );
 
@@ -205,7 +227,7 @@ public class App {
     public static void main(String[] args) {
         App app = new App();
 
-//        app.runJoin();
+        //app.runJoin();
         app.runTwoProducersSpammerAsync();
     }
 }
