@@ -1,10 +1,15 @@
 package br.com.carloskafka;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.producer.*;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.Producer;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.LongSerializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.apache.kafka.streams.KeyValue;
+import org.apache.kafka.streams.kstream.ValueJoiner;
 import org.apache.spark.SparkConf;
 import org.apache.spark.streaming.Duration;
 import org.apache.spark.streaming.Durations;
@@ -28,7 +33,7 @@ public class App {
     public static final String TOPIC_NAME_2 = "TOPICO_DOIS";
 
 
-    public static final int AMOUNT_OF_EVENTS = 500_000_000;
+    public static final int AMOUNT_OF_EVENTS = 500;
 
     public App() {
         super();
@@ -42,13 +47,8 @@ public class App {
                         new ObjectMapper().writeValueAsString(new Objeto("agencia", "conta", "numerMov" + index)));
                 ProducerRecord<Long, String> record2 = new ProducerRecord<Long, String>(TOPIC_NAME_2,
                         new ObjectMapper().writeValueAsString(new Objeto("agencia", "conta", "numerMov" + index)));
-                try {
-                    producer.send(record);
-                    producer.send(record2);
-                } catch (Exception e) {
-                    System.out.println("Error in sending record");
-                    System.out.println(e);
-                }
+                producer.send(record);
+                producer.send(record2);
             }
         } catch (Exception e) {
             System.out.println("Error to produce events to topic kafka.\nDetails: " + e.getMessage());
@@ -102,8 +102,9 @@ public class App {
         SparkConf sparkConf = new SparkConf()
                 .setAppName("Example Spark App")
                 .set("spark.local.dir", "E:/spark-partitions/" + UUID.randomUUID().toString())
-                .set("spark.streaming.backpressure.enabled","true")
-                .setMaster("local[4]")  // Delete this line when submitting to a cluster
+                .set("spark.streaming.backpressure.enabled", "true")
+                .set("spark.executor.memory", "4g")
+                .setMaster("local[1]")  // Delete this line when submitting to a cluster
                 ;
 
         JavaStreamingContext javaStreamingContext = new JavaStreamingContext(
@@ -137,7 +138,8 @@ public class App {
 
                             return tupla;
                         }
-                );
+                )
+                .window(WINDOW_DURATION, SLIDING_INTERVAL_IN_WINDOW_DURATION);
 
         JavaPairDStream<String, Objeto> results2 = messages2
                 .mapToPair(
@@ -152,22 +154,24 @@ public class App {
 
                             return tupla;
                         }
-                );
-
-        JavaPairDStream<String, Tuple2<Objeto, Objeto>> joinedWordCount = results.join(results2)
+                )
                 .window(WINDOW_DURATION, SLIDING_INTERVAL_IN_WINDOW_DURATION);
 
-        messages.foreachRDD((rdd) -> {
+        results.foreachRDD((rdd) -> {
             if (!rdd.isEmpty()) {
                 System.out.println("COUNT MESSAGES " + rdd.count());
             }
         });
 
-        messages2.foreachRDD((rdd) -> {
+        results2.foreachRDD((rdd) -> {
             if (!rdd.isEmpty()) {
                 System.out.println("COUNT MESSAGES 2 " + rdd.count());
             }
         });
+
+        JavaPairDStream<String, Tuple2<Objeto, Objeto>> joinedWordCount = results
+                .window(WINDOW_DURATION, SLIDING_INTERVAL_IN_WINDOW_DURATION)
+                .join(results2);
 
         joinedWordCount.foreachRDD((rdd) -> {
             if (!rdd.isEmpty()) {
@@ -193,7 +197,7 @@ public class App {
         JavaDStream<ConsumerRecord<String, String>> messages =
                 KafkaUtils.createDirectStream(
                         streamingContext,
-                        LocationStrategies.PreferBrokers(),
+                        LocationStrategies.PreferConsistent(),
                         ConsumerStrategies.Subscribe(topics, kafkaParams)
                 );
 
@@ -213,7 +217,7 @@ public class App {
         JavaDStream<ConsumerRecord<String, String>> messages =
                 KafkaUtils.createDirectStream(
                         streamingContext,
-                        LocationStrategies.PreferBrokers(),
+                        LocationStrategies.PreferConsistent(),
                         ConsumerStrategies.Subscribe(topics, kafkaParams)
                 );
 
@@ -223,7 +227,7 @@ public class App {
     public static void main(String[] args) {
         App app = new App();
 
-         app.runJoin();
-        //app.runTwoProducersSpammerAsync();
+//        app.runJoin();
+        app.runTwoProducersSpammerAsync();
     }
 }

@@ -93,5 +93,12 @@
       <version>${spark-streaming-version}</version>
     </dependency>
 
+    <!-- https://mvnrepository.com/artifact/org.apache.kafka/kafka-streams -->
+    <dependency>
+      <groupId>org.apache.kafka</groupId>
+      <artifactId>kafka-streams</artifactId>
+      <version>${spark-streaming-version}</version>
+    </dependency>
+
   </dependencies>
 </project>
